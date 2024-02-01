@@ -3,7 +3,7 @@
 
 # install nginx
 sudo apt-get update >/dev/null
-sudo apt-get install nginx -y >/dev/null
+sudo apt-get install nginx -y >/dev/null 
 
 #setup source directories
 sudo mkdir -p /data/web_static/releases/test/
