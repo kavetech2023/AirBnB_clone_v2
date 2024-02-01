@@ -4,8 +4,7 @@ from the contents of the web_static folder"""
 
 from fabric.api import *
 from datetime import datetime
-import os 
-
+import os
 
 def do_pack():
     """Generate an archive of /web_static folder"""
@@ -14,11 +13,14 @@ def do_pack():
         date = datetime.now().strftime('%Y%m%d%H%M%S')
         fn = "versions/web_static_{}.tgz".format(date)
 
-        out = local("tar -czvf {} ./web_static/".format(fn))
+        # Use capture=True to capture the output of the command
+        out = local("tar -czvf {} ./web_static/".format(fn), capture=True)
 
-        if out.succeeded:
-            return "./{}".format(out.command.split(" ")[2])
+        # Check the return code of the command (0 means success)
+        if out.return_code == 0:
+            return fn
         else:
             return None
-    except Exception:
+    except Exception as e:
+        print(f"An error occurred: {e}")
         return None
