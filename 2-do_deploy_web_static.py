@@ -2,7 +2,7 @@
 """Defines a fabric function `do_deploy` that distributes
 an archive to web servers"""
 
-from fabric.api import *
+from fabric.api import * 
 import os
 
 env.hosts = [
