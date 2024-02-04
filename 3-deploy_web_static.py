@@ -1,62 +1,65 @@
 #!/usr/bin/python3
+"""Defines fabric functions that distributes
+an archive to web servers, then extracts and deploys it"""
+
 from fabric.api import *
 from datetime import datetime
 import os
-from os.path import exists
 
-
-"""Fabric script that generates a .tgz archive from
-the contents of the web_static folder"""
+env.hosts = [
+    "100.25.3.52",
+    "35.153.226.125"
+]
 
 
 def do_pack():
-    """Create a tar gzipped archive of the web_static folder"""
-    # Create the versions folder if it doesn't exist
-    if not os.path.exists("versions"):
-        local("mkdir -p versions")
-    # Generate the archive name based on the current date and time
-    now = datetime.now()
-    archive_name = "web_static_{}{}{}{}{}{}.tgz".format(now.year,
-                                                        now.month,
-                                                        now.day,
-                                                        now.hour,
-                                                        now.minute,
-                                                        now.second)
-    # Create the archive using the tar command
-    archive_path = "versions/{}".format(archive_name)
-    result = local("tar -cvzf {} web_static".format(archive_path))
-    # Return the archive path if successful, otherwise None
-    if result.succeeded:
-        return archive_path
-    else:
+    """Generate an archive of /web_static folder"""
+    try:
+        os.makedirs("versions", exist_ok=True)
+        date = datetime.now().strftime('%Y%m%d%H%M%S')
+        fn = "versions/web_static_{}.tgz".format(date)
+
+        out = local("tar -czvf {} ./web_static/".format(fn))
+
+        if out.succeeded:
+            return "./{}".format(out.command.split(" ")[2])
+        else:
+            return None
+    except Exception:
         return None
 
 
-"""a Fabric script (based on the file 1-pack_web_static.py)
-that distributes an archive to your web servers"""
-
-
-env.hosts = ['100.25.3.52', '35.153.226.125']
-
-
 def do_deploy(archive_path):
-    """Distributes an archive to the web servers"""
-    # Check if the archive path exists
-    if not exists(archive_path):
+    """distributes an archive to web servers
+    """
+    archive_exists = os.path.exists(archive_path)
+    if not archive_exists:
         return False
-    # Get the archive filename without extension
-    archive_file = archive_path.split('/')[-1]
-    archive_name = archive_file.split('.')[0]
-    # Define the remote paths
-    tmp_path = "/tmp/{}".format(archive_file)
-    release_path = "/data/web_static/releases/{}".format(archive_name)
-    current_path = "/data/web_static/current"
-    # Upload the archive to the /tmp/ directory of the web server
-    put(archive_path, tmp_path)
-    # Uncompress the archive to the /data/web_static/releases/
-    run("mkdir -p {}".format(release_path))
-    run("tar -xzf {} -C {}".format(tmp_path, release_path))
-    # Delete the archive from the web server
-    run("rm {}".format(tmp_path))
-    # Delete the symbolic link /data/web_static/current from the web server
-    run("mv {}/web_static/* {}".format(release_p
+
+    try:
+        archive_fn = archive_path.split("/")[-1]
+        archive_dir = "/data/web_static/releases/{}".format(
+            archive_fn.split(".")[0])
+
+        put(archive_path, "/tmp/")
+        run("mkdir -p {}".format(archive_dir))
+        run("tar -xzf /tmp/{fn} --directory {dir}".format(
+            fn=archive_fn, dir=archive_dir))
+        run("rsync -a {dir}/web_static/* {dir}".format(dir=archive_dir))
+        sudo("chown -R ubuntu:ubuntu /data/")
+        run("rm -rf {dir}/web_static".format(dir=archive_dir))
+        run("rm /tmp/{}".format(archive_fn))
+        run("rm -rf /data/web_static/current")
+        run("ln -sf {} /data/web_static/current".format(archive_dir))
+        return True
+    except Exception:
+        return False
+
+
+def deploy():
+    """Archives and deploys the web_static folder"""
+    archive_path = do_pack()
+    if archive_path is None:
+        return False
+
+    return do_deploy(archive_path)
